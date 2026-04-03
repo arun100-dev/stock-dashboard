@@ -1,0 +1,921 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>JarNox · Stock Intelligence</title>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0a0c10;
+      --surface: #10141a;
+      --surface2: #161b24;
+      --border: #1e2633;
+      --accent: #00d4aa;
+      --accent2: #4facfe;
+      --red: #ff5370;
+      --yellow: #ffd166;
+      --text: #cdd5e0;
+      --muted: #5a6478;
+      --mono: 'IBM Plex Mono', monospace;
+      --sans: 'DM Sans', sans-serif;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--sans);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px 28px;
+      border-bottom: 1px solid var(--border);
+      background: var(--surface);
+    }
+
+    .logo {
+      font-family: var(--mono);
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--accent);
+      letter-spacing: 0.08em;
+    }
+
+    .logo span { color: var(--muted); }
+
+    .header-right {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+    }
+
+    .live-badge {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--accent);
+      letter-spacing: 0.05em;
+    }
+
+    .live-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--accent);
+      animation: pulse 1.8s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.3; }
+    }
+
+    .layout {
+      display: grid;
+      grid-template-columns: 220px 1fr;
+      flex: 1;
+      overflow: hidden;
+    }
+
+    .sidebar {
+      background: var(--surface);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      overflow-y: auto;
+    }
+
+    .sidebar-title {
+      font-family: var(--mono);
+      font-size: 10px;
+      letter-spacing: 0.12em;
+      color: var(--muted);
+      padding: 18px 16px 10px;
+      text-transform: uppercase;
+    }
+
+    .company-item {
+      display: flex;
+      flex-direction: column;
+      padding: 10px 16px;
+      cursor: pointer;
+      border-left: 2px solid transparent;
+      transition: all 0.15s;
+      gap: 2px;
+    }
+
+    .company-item:hover { background: var(--surface2); border-left-color: var(--muted); }
+    .company-item.active { background: var(--surface2); border-left-color: var(--accent); }
+
+    .company-symbol {
+      font-family: var(--mono);
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text);
+    }
+
+    .company-name {
+      font-size: 11px;
+      color: var(--muted);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .company-return {
+      font-family: var(--mono);
+      font-size: 11px;
+      margin-top: 2px;
+    }
+
+    .pos { color: var(--accent); }
+    .neg { color: var(--red); }
+    .neu { color: var(--muted); }
+
+    .main {
+      overflow-y: auto;
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    .stock-header {
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+
+    .stock-title {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .stock-symbol {
+      font-family: var(--mono);
+      font-size: 22px;
+      font-weight: 600;
+      color: #fff;
+    }
+
+    .stock-company-name {
+      font-size: 13px;
+      color: var(--muted);
+    }
+
+    .stock-price-block {
+      text-align: right;
+    }
+
+    .price-big {
+      font-family: var(--mono);
+      font-size: 28px;
+      font-weight: 600;
+      color: #fff;
+    }
+
+    .price-change {
+      font-family: var(--mono);
+      font-size: 13px;
+      margin-top: 2px;
+    }
+
+    .controls {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .btn {
+      font-family: var(--mono);
+      font-size: 11px;
+      padding: 6px 14px;
+      border: 1px solid var(--border);
+      background: transparent;
+      color: var(--muted);
+      cursor: pointer;
+      border-radius: 3px;
+      transition: all 0.15s;
+      letter-spacing: 0.04em;
+    }
+
+    .btn:hover { border-color: var(--accent); color: var(--accent); }
+    .btn.active { border-color: var(--accent); color: var(--accent); background: rgba(0,212,170,0.08); }
+
+    .mode-btn {
+      padding: 6px 14px;
+      font-family: var(--mono);
+      font-size: 11px;
+      border: 1px solid var(--border);
+      background: transparent;
+      color: var(--muted);
+      cursor: pointer;
+      border-radius: 3px;
+      transition: all 0.15s;
+    }
+
+    .mode-btn.active { border-color: var(--accent2); color: var(--accent2); background: rgba(79,172,254,0.08); }
+
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+      gap: 12px;
+    }
+
+    .stat-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 14px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .stat-label {
+      font-family: var(--mono);
+      font-size: 10px;
+      letter-spacing: 0.1em;
+      color: var(--muted);
+      text-transform: uppercase;
+    }
+
+    .stat-value {
+      font-family: var(--mono);
+      font-size: 18px;
+      font-weight: 600;
+      color: #fff;
+    }
+
+    .stat-sub {
+      font-size: 11px;
+      color: var(--muted);
+    }
+
+    .chart-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 20px;
+    }
+
+    .chart-label {
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--muted);
+      margin-bottom: 16px;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+
+    canvas { max-height: 280px; }
+
+    .compare-section {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 20px;
+      display: none;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .compare-section.visible { display: flex; }
+
+    .compare-controls {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    .compare-controls input, .compare-controls select {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      color: var(--text);
+      font-family: var(--mono);
+      font-size: 12px;
+      padding: 7px 12px;
+      border-radius: 3px;
+      outline: none;
+    }
+
+    .compare-controls input:focus, .compare-controls select:focus {
+      border-color: var(--accent2);
+    }
+
+    .run-btn {
+      background: var(--accent2);
+      border: none;
+      color: #0a0c10;
+      font-family: var(--mono);
+      font-size: 12px;
+      font-weight: 600;
+      padding: 7px 18px;
+      cursor: pointer;
+      border-radius: 3px;
+      transition: opacity 0.15s;
+    }
+
+    .run-btn:hover { opacity: 0.85; }
+
+    .compare-result {
+      display: none;
+      gap: 16px;
+      flex-direction: column;
+    }
+
+    .compare-result.visible { display: flex; }
+
+    .winner-banner {
+      background: rgba(0,212,170,0.08);
+      border: 1px solid rgba(0,212,170,0.25);
+      border-radius: 4px;
+      padding: 12px 16px;
+      font-family: var(--mono);
+      font-size: 13px;
+    }
+
+    .winner-banner span { color: var(--accent); font-weight: 600; }
+
+    .prediction-section {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 20px;
+      display: none;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .prediction-section.visible { display: flex; }
+
+    .pred-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+      gap: 10px;
+    }
+
+    .pred-card {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 12px 14px;
+    }
+
+    .pred-date { font-family: var(--mono); font-size: 10px; color: var(--muted); margin-bottom: 4px; }
+    .pred-price { font-family: var(--mono); font-size: 15px; font-weight: 600; }
+
+    .disclaimer {
+      font-size: 11px;
+      color: var(--muted);
+      padding: 10px 14px;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      border-left: 3px solid var(--yellow);
+      background: rgba(255,209,102,0.04);
+    }
+
+    .section-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .section-title {
+      font-family: var(--mono);
+      font-size: 11px;
+      letter-spacing: 0.1em;
+      color: var(--muted);
+      text-transform: uppercase;
+    }
+
+    .loading {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 200px;
+      font-family: var(--mono);
+      font-size: 12px;
+      color: var(--muted);
+      gap: 10px;
+    }
+
+    .spinner {
+      width: 16px;
+      height: 16px;
+      border: 2px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .empty { display: flex; align-items: center; justify-content: center; height: 60vh; flex-direction: column; gap: 8px; }
+    .empty-title { font-family: var(--mono); font-size: 13px; color: var(--muted); }
+    .empty-sub { font-size: 12px; color: var(--muted); opacity: 0.6; }
+
+    .badge {
+      display: inline-block;
+      font-family: var(--mono);
+      font-size: 10px;
+      padding: 2px 8px;
+      border-radius: 2px;
+      letter-spacing: 0.06em;
+    }
+
+    .badge-sector {
+      background: rgba(79,172,254,0.1);
+      color: var(--accent2);
+      border: 1px solid rgba(79,172,254,0.2);
+    }
+
+    .tab-row {
+      display: flex;
+      gap: 0;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 16px;
+    }
+
+    .tab {
+      font-family: var(--mono);
+      font-size: 11px;
+      padding: 9px 18px;
+      cursor: pointer;
+      color: var(--muted);
+      border-bottom: 2px solid transparent;
+      margin-bottom: -1px;
+      transition: all 0.15s;
+      letter-spacing: 0.04em;
+      background: none;
+      border-top: none;
+      border-left: none;
+      border-right: none;
+    }
+
+    .tab:hover { color: var(--text); }
+    .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="logo">JARNOX <span>/</span> STOCK INTELLIGENCE</div>
+  <div class="header-right">
+    <div class="live-badge"><div class="live-dot"></div> NSE DATA FEED</div>
+  </div>
+</header>
+
+<div class="layout">
+  <aside class="sidebar">
+    <div class="sidebar-title">Companies</div>
+    <div id="company-list"><div class="loading"><div class="spinner"></div></div></div>
+  </aside>
+
+  <main class="main" id="main-content">
+    <div class="empty">
+      <div class="empty-title">← Select a company</div>
+      <div class="empty-sub">Choose from the list to view stock data</div>
+    </div>
+  </main>
+</div>
+
+<script>
+  let currentSymbol = null;
+  let currentDays = 30;
+  let priceChart = null;
+  let compareChart = null;
+  let activeTab = 'overview';
+  let allCompanies = [];
+
+  async function api(path) {
+    const res = await fetch(path);
+    if (!res.ok) throw new Error(await res.text());
+    return res.json();
+  }
+
+  async function loadSidebar() {
+    try {
+      allCompanies = await api('/companies');
+      const summaries = await Promise.allSettled(
+        allCompanies.map(c => api(`/summary/${c.symbol}`))
+      );
+
+      const list = document.getElementById('company-list');
+      list.innerHTML = '';
+
+      allCompanies.forEach((c, i) => {
+        const s = summaries[i].status === 'fulfilled' ? summaries[i].value : null;
+        const ret = s ? s.latest_return : null;
+        const retStr = ret !== null ? (ret >= 0 ? `+${ret}%` : `${ret}%`) : '—';
+        const cls = ret === null ? 'neu' : ret >= 0 ? 'pos' : 'neg';
+
+        const el = document.createElement('div');
+        el.className = 'company-item';
+        el.dataset.symbol = c.symbol;
+        el.innerHTML = `
+          <span class="company-symbol">${c.symbol}</span>
+          <span class="company-name">${c.name}</span>
+          <span class="company-return ${cls}">${retStr} today</span>
+        `;
+        el.addEventListener('click', () => selectCompany(c.symbol));
+        list.appendChild(el);
+      });
+    } catch (e) {
+      document.getElementById('company-list').innerHTML = '<div style="padding:16px;font-size:12px;color:#5a6478;">Failed to load</div>';
+    }
+  }
+
+  async function selectCompany(symbol) {
+    currentSymbol = symbol;
+    activeTab = 'overview';
+
+    document.querySelectorAll('.company-item').forEach(el => {
+      el.classList.toggle('active', el.dataset.symbol === symbol);
+    });
+
+    const main = document.getElementById('main-content');
+    main.innerHTML = '<div class="loading"><div class="spinner"></div> Loading market data…</div>';
+
+    try {
+      const [data, summary] = await Promise.all([
+        api(`/data/${symbol}?days=${currentDays}`),
+        api(`/summary/${symbol}`)
+      ]);
+      renderStock(data, summary);
+    } catch (e) {
+      main.innerHTML = `<div class="empty"><div class="empty-title">Error loading ${symbol}</div></div>`;
+    }
+  }
+
+  function renderStock(data, summary) {
+    const ret = summary.latest_return;
+    const retStr = ret !== null ? (ret >= 0 ? `+${ret}%` : `${ret}%`) : '—';
+    const retCls = ret === null ? 'neu' : ret >= 0 ? 'pos' : 'neg';
+    const c = allCompanies.find(x => x.symbol === data.symbol) || {};
+
+    document.getElementById('main-content').innerHTML = `
+      <div class="stock-header">
+        <div class="stock-title">
+          <div style="display:flex;align-items:center;gap:10px">
+            <span class="stock-symbol">${data.symbol}</span>
+            <span class="badge badge-sector">${c.sector || 'NSE'}</span>
+          </div>
+          <span class="stock-company-name">${data.company}</span>
+        </div>
+        <div class="stock-price-block">
+          <div class="price-big">₹${summary.latest_close?.toLocaleString('en-IN') || '—'}</div>
+          <div class="price-change ${retCls}">${retStr} · ${summary.latest_date || ''}</div>
+        </div>
+      </div>
+
+      <div class="tab-row">
+        <button class="tab active" onclick="switchTab('overview')">Overview</button>
+        <button class="tab" onclick="switchTab('compare')">Compare</button>
+        <button class="tab" onclick="switchTab('predict')">Forecast</button>
+      </div>
+
+      <div id="tab-overview">
+        <div class="stats-grid">
+          <div class="stat-card">
+            <div class="stat-label">52W High</div>
+            <div class="stat-value">₹${summary.week52_high?.toLocaleString('en-IN') || '—'}</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">52W Low</div>
+            <div class="stat-value">₹${summary.week52_low?.toLocaleString('en-IN') || '—'}</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Avg Close</div>
+            <div class="stat-value">₹${summary.avg_close?.toLocaleString('en-IN') || '—'}</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Volatility</div>
+            <div class="stat-value ${(summary.volatility_score || 0) > 1.5 ? 'neg' : 'pos'}">${summary.volatility_score ?? '—'}%</div>
+            <div class="stat-sub">90-day avg daily move</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Avg Volume</div>
+            <div class="stat-value" style="font-size:14px">${summary.avg_daily_volume ? (summary.avg_daily_volume / 1e5).toFixed(1) + 'L' : '—'}</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Trading Days</div>
+            <div class="stat-value">${summary.trading_days_tracked || '—'}</div>
+            <div class="stat-sub">past 52 weeks</div>
+          </div>
+        </div>
+
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          ${[7, 30, 90, 180].map(d =>
+            `<button class="btn ${d === currentDays ? 'active' : ''}" onclick="changePeriod(${d})">${d}D</button>`
+          ).join('')}
+        </div>
+
+        <div class="chart-card">
+          <div class="chart-label">Close Price · ${currentDays} Days</div>
+          <canvas id="priceCanvas"></canvas>
+        </div>
+
+        <div class="chart-card">
+          <div class="chart-label">Daily Return %</div>
+          <canvas id="returnCanvas"></canvas>
+        </div>
+      </div>
+
+      <div id="tab-compare" style="display:none">
+        <div class="compare-section visible">
+          <div class="section-header"><span class="section-title">Compare Two Stocks</span></div>
+          <div class="compare-controls">
+            <input type="text" id="cmp1" value="${data.symbol}" placeholder="Symbol 1" style="width:100px;text-transform:uppercase" />
+            <input type="text" id="cmp2" placeholder="Symbol 2 e.g. TCS" style="width:160px;text-transform:uppercase" />
+            <select id="cmpDays">
+              <option value="30">30 Days</option>
+              <option value="90">90 Days</option>
+              <option value="180">180 Days</option>
+              <option value="365">1 Year</option>
+            </select>
+            <button class="run-btn" onclick="runCompare()">Compare →</button>
+          </div>
+          <div id="compare-result" class="compare-result">
+            <div class="chart-card"><canvas id="compareCanvas"></canvas></div>
+          </div>
+        </div>
+      </div>
+
+      <div id="tab-predict" style="display:none">
+        <div class="prediction-section visible">
+          <div class="section-header"><span class="section-title">Price Forecast — ${data.symbol}</span></div>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+            ${[7, 14, 30].map(h =>
+              `<button class="mode-btn ${h === 7 ? 'active' : ''}" onclick="loadPrediction(${h}, this)">${h}-Day Forecast</button>`
+            ).join('')}
+          </div>
+          <div id="pred-result"><div class="loading"><div class="spinner"></div> Running model…</div></div>
+        </div>
+      </div>
+    `;
+
+    renderCharts(data);
+    loadPrediction(7, null);
+  }
+
+  function switchTab(tab) {
+    activeTab = tab;
+    ['overview', 'compare', 'predict'].forEach(t => {
+      document.getElementById(`tab-${t}`).style.display = t === tab ? '' : 'none';
+      document.querySelectorAll('.tab').forEach((el, i) => {
+        const tabs = ['overview', 'compare', 'predict'];
+        el.classList.toggle('active', tabs[i] === tab);
+      });
+    });
+  }
+
+  function renderCharts(data) {
+    const dates = data.data.map(r => r.date.slice(5));
+    const closes = data.data.map(r => r.close);
+    const ma7 = data.data.map(r => r.ma7);
+    const returns = data.data.map(r => r.daily_return ? +(r.daily_return * 100).toFixed(2) : 0);
+
+    if (priceChart) priceChart.destroy();
+    priceChart = new Chart(document.getElementById('priceCanvas'), {
+      type: 'line',
+      data: {
+        labels: dates,
+        datasets: [
+          {
+            label: 'Close',
+            data: closes,
+            borderColor: '#00d4aa',
+            backgroundColor: 'rgba(0,212,170,0.07)',
+            borderWidth: 1.5,
+            fill: true,
+            tension: 0.3,
+            pointRadius: 0,
+          },
+          {
+            label: '7-Day MA',
+            data: ma7,
+            borderColor: '#4facfe',
+            borderWidth: 1,
+            borderDash: [4, 3],
+            fill: false,
+            tension: 0.3,
+            pointRadius: 0,
+          }
+        ]
+      },
+      options: chartOptions('₹')
+    });
+
+    const returnChart = new Chart(document.getElementById('returnCanvas'), {
+      type: 'bar',
+      data: {
+        labels: dates,
+        datasets: [{
+          label: 'Daily Return %',
+          data: returns,
+          backgroundColor: returns.map(r => r >= 0 ? 'rgba(0,212,170,0.6)' : 'rgba(255,83,112,0.6)'),
+          borderWidth: 0,
+        }]
+      },
+      options: chartOptions('%')
+    });
+  }
+
+  function chartOptions(unit) {
+    return {
+      responsive: true,
+      maintainAspectRatio: true,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: {
+          labels: { color: '#5a6478', font: { family: 'IBM Plex Mono', size: 11 } }
+        },
+        tooltip: {
+          backgroundColor: '#10141a',
+          borderColor: '#1e2633',
+          borderWidth: 1,
+          titleColor: '#cdd5e0',
+          bodyColor: '#5a6478',
+          titleFont: { family: 'IBM Plex Mono', size: 11 },
+          callbacks: {
+            label: ctx => ` ${ctx.dataset.label}: ${unit === '₹' ? '₹' : ''}${ctx.raw}${unit === '%' ? '%' : ''}`
+          }
+        }
+      },
+      scales: {
+        x: {
+          ticks: { color: '#5a6478', font: { family: 'IBM Plex Mono', size: 10 }, maxTicksLimit: 8 },
+          grid: { color: '#1e2633' }
+        },
+        y: {
+          ticks: { color: '#5a6478', font: { family: 'IBM Plex Mono', size: 10 } },
+          grid: { color: '#1e2633' }
+        }
+      }
+    };
+  }
+
+  async function changePeriod(days) {
+    currentDays = days;
+    document.querySelectorAll('.btn').forEach(b => {
+      b.classList.toggle('active', b.textContent === `${days}D`);
+    });
+    try {
+      const data = await api(`/data/${currentSymbol}?days=${days}`);
+      document.querySelector('.chart-label').textContent = `Close Price · ${days} Days`;
+      renderCharts(data);
+    } catch {}
+  }
+
+  async function runCompare() {
+    const s1 = document.getElementById('cmp1').value.toUpperCase().trim();
+    const s2 = document.getElementById('cmp2').value.toUpperCase().trim();
+    const days = document.getElementById('cmpDays').value;
+
+    if (!s1 || !s2) return;
+
+    const resultEl = document.getElementById('compare-result');
+    resultEl.innerHTML = '<div class="loading"><div class="spinner"></div> Comparing…</div>';
+    resultEl.classList.add('visible');
+
+    try {
+      const d = await api(`/compare?symbol1=${s1}&symbol2=${s2}&days=${days}`);
+      const d1 = d.stock1, d2 = d.stock2;
+
+      resultEl.innerHTML = `
+        <div class="winner-banner">
+          Winner over ${days} days: <span>${d.winner}</span>
+          · outperformed by <span>${d.return_difference_pct}%</span>
+        </div>
+        <div class="stats-grid">
+          ${[d1, d2].map(s => `
+            <div class="stat-card">
+              <div class="stat-label">${s.symbol}</div>
+              <div class="stat-value ${s.period_return_pct >= 0 ? 'pos' : 'neg'}">
+                ${s.period_return_pct >= 0 ? '+' : ''}${s.period_return_pct}%
+              </div>
+              <div class="stat-sub">₹${s.start_price} → ₹${s.end_price}</div>
+            </div>
+          `).join('')}
+          ${[d1, d2].map(s => `
+            <div class="stat-card">
+              <div class="stat-label">${s.symbol} Volatility</div>
+              <div class="stat-value">${s.volatility_pct}%</div>
+            </div>
+          `).join('')}
+        </div>
+        <div class="chart-card"><canvas id="compareCanvas"></canvas></div>
+      `;
+
+      const dates = d1.dates.map(x => x.slice(5));
+      if (compareChart) compareChart.destroy();
+      compareChart = new Chart(document.getElementById('compareCanvas'), {
+        type: 'line',
+        data: {
+          labels: dates,
+          datasets: [
+            {
+              label: `${d1.symbol} (normalized)`,
+              data: d1.normalized,
+              borderColor: '#00d4aa',
+              borderWidth: 1.5,
+              fill: false,
+              tension: 0.3,
+              pointRadius: 0,
+            },
+            {
+              label: `${d2.symbol} (normalized)`,
+              data: d2.normalized,
+              borderColor: '#ffd166',
+              borderWidth: 1.5,
+              fill: false,
+              tension: 0.3,
+              pointRadius: 0,
+            }
+          ]
+        },
+        options: chartOptions('idx')
+      });
+    } catch (e) {
+      resultEl.innerHTML = `<div style="padding:14px;font-family:var(--mono);font-size:12px;color:var(--red);">Error: ${e.message}</div>`;
+    }
+  }
+
+  async function loadPrediction(horizon, btn) {
+    if (btn) {
+      document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+    }
+
+    const el = document.getElementById('pred-result');
+    if (!el) return;
+    el.innerHTML = '<div class="loading"><div class="spinner"></div> Running model…</div>';
+
+    try {
+      const d = await api(`/predict/${currentSymbol}?horizon_days=${horizon}`);
+      const confColor = d.confidence === 'High' ? '#00d4aa' : d.confidence === 'Medium' ? '#ffd166' : '#ff5370';
+
+      el.innerHTML = `
+        <div class="stats-grid">
+          <div class="stat-card">
+            <div class="stat-label">Current Price</div>
+            <div class="stat-value">₹${d.current_price?.toLocaleString('en-IN')}</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Direction</div>
+            <div class="stat-value ${d.expected_direction === 'UP' ? 'pos' : 'neg'}">${d.expected_direction === 'UP' ? '↑' : '↓'} ${d.expected_direction}</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Expected Move</div>
+            <div class="stat-value ${d.expected_change_pct >= 0 ? 'pos' : 'neg'}">
+              ${d.expected_change_pct >= 0 ? '+' : ''}${d.expected_change_pct}%
+            </div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Confidence</div>
+            <div class="stat-value" style="color:${confColor}">${d.confidence}</div>
+            <div class="stat-sub">R² = ${d.model_r2_score}</div>
+          </div>
+        </div>
+
+        <div>
+          <div class="section-title" style="margin-bottom:10px">Predicted Prices</div>
+          <div class="pred-grid">
+            ${d.predicted_prices.map(p => `
+              <div class="pred-card">
+                <div class="pred-date">${p.date}</div>
+                <div class="pred-price ${p.predicted_close >= d.current_price ? 'pos' : 'neg'}">
+                  ₹${p.predicted_close?.toLocaleString('en-IN')}
+                </div>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+
+        <div class="disclaimer">${d.disclaimer}</div>
+      `;
+    } catch (e) {
+      el.innerHTML = `<div style="padding:14px;font-size:12px;font-family:var(--mono);color:var(--red);">Model error: ${e.message}</div>`;
+    }
+  }
+
+  loadSidebar();
+</script>
+</body>
+</html>

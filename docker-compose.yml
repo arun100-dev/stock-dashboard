@@ -1,0 +1,15 @@
+version: "3.9"
+
+services:
+  stock-api:
+    build: .
+    ports:
+      - "8000:8000"
+    volumes:
+      - stock-data:/app/data
+    environment:
+      - DB_PATH=data/stocks.db
+    restart: unless-stopped
+
+volumes:
+  stock-data:
