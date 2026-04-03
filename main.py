@@ -4,7 +4,6 @@ from fastapi.responses import HTMLResponse
 from contextlib import asynccontextmanager
 import os
 import uvicorn
-
 from app.database import init_db
 from app.routes import stocks, analytics, predictions
 from app.routes import assignment_routes
@@ -39,4 +38,8 @@ async def dashboard():
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 10000))
+<<<<<<< HEAD
     uvicorn.run("main:app", host="0.0.0.0", port=port)
+=======
+    uvicorn.run("main:app", host="0.0.0.0", port=port)
+>>>>>>> 9187838 (fix render crash)
